@@ -270,6 +270,11 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:_},lt=(t=ct
   }
 
   ha-entity-picker {
+    display: block;
+    width: 100%;
+  }
+
+  .entity-row ha-entity-picker {
     flex: 2;
   }
 
@@ -419,6 +424,7 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:_},lt=(t=ct
             .hass=${this.hass}
             .value=${t.entity}
             .includeDomains=${["sensor"]}
+            label="Entity"
             allow-custom-entity
             @value-changed=${t=>this._entityValueChanged(e,"entity",t.detail.value)}
           ></ha-entity-picker>

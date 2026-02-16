@@ -212,6 +212,7 @@ class StackLineCardEditor extends LitElement {
             .hass=${this.hass}
             .value=${entity.entity}
             .includeDomains=${["sensor"]}
+            label="Entity"
             allow-custom-entity
             @value-changed=${(e: CustomEvent) =>
               this._entityValueChanged(index, "entity", e.detail.value)}

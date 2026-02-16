@@ -217,6 +217,11 @@ export const editorStyles = css`
   }
 
   ha-entity-picker {
+    display: block;
+    width: 100%;
+  }
+
+  .entity-row ha-entity-picker {
     flex: 2;
   }
 
