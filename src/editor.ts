@@ -208,15 +208,14 @@ class StackLineCardEditor extends LitElement {
         </div>
 
         <div class="entity-fields">
-          <ha-entity-picker
+          <ha-selector
             .hass=${this.hass}
+            .selector=${{ entity: { domain: "sensor" } }}
             .value=${entity.entity}
-            .includeDomains=${["sensor"]}
-            label="Entity"
-            allow-custom-entity
+            .label=${"Entity"}
             @value-changed=${(e: CustomEvent) =>
               this._entityValueChanged(index, "entity", e.detail.value)}
-          ></ha-entity-picker>
+          ></ha-selector>
 
           <div class="entity-row">
             <ha-select
@@ -367,14 +366,14 @@ class StackLineCardEditor extends LitElement {
 
         ${action.action === "more-info" || action.action === "toggle"
           ? html`
-              <ha-entity-picker
+              <ha-selector
                 .hass=${this.hass}
+                .selector=${{ entity: {} }}
                 .value=${action.entity || ""}
-                label="Entity (defaults to first)"
-                allow-custom-entity
+                .label=${"Entity (defaults to first)"}
                 @value-changed=${(e: CustomEvent) =>
                   this._actionFieldChanged(key, "entity", e.detail.value)}
-              ></ha-entity-picker>
+              ></ha-selector>
             `
           : nothing}
         ${action.action === "navigate"

@@ -216,13 +216,9 @@ export const editorStyles = css`
     margin-top: 8px;
   }
 
-  ha-entity-picker {
+  ha-selector {
     display: block;
     width: 100%;
-  }
-
-  .entity-row ha-entity-picker {
-    flex: 2;
   }
 
   .action-block {

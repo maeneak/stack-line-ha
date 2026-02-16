@@ -269,13 +269,9 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:_},lt=(t=ct
     margin-top: 8px;
   }
 
-  ha-entity-picker {
+  ha-selector {
     display: block;
     width: 100%;
-  }
-
-  .entity-row ha-entity-picker {
-    flex: 2;
   }
 
   .action-block {
@@ -420,14 +416,13 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:_},lt=(t=ct
         </div>
 
         <div class="entity-fields">
-          <ha-entity-picker
+          <ha-selector
             .hass=${this.hass}
+            .selector=${{entity:{domain:"sensor"}}}
             .value=${t.entity}
-            .includeDomains=${["sensor"]}
-            label="Entity"
-            allow-custom-entity
+            .label=${"Entity"}
             @value-changed=${t=>this._entityValueChanged(e,"entity",t.detail.value)}
-          ></ha-entity-picker>
+          ></ha-selector>
 
           <div class="entity-row">
             <ha-select
@@ -519,13 +514,13 @@ const ct={attribute:!0,type:String,converter:y,reflect:!1,hasChanged:_},lt=(t=ct
         </ha-select>
 
         ${"more-info"===i.action||"toggle"===i.action?j`
-              <ha-entity-picker
+              <ha-selector
                 .hass=${this.hass}
+                .selector=${{entity:{}}}
                 .value=${i.entity||""}
-                label="Entity (defaults to first)"
-                allow-custom-entity
+                .label=${"Entity (defaults to first)"}
                 @value-changed=${e=>this._actionFieldChanged(t,"entity",e.detail.value)}
-              ></ha-entity-picker>
+              ></ha-selector>
             `:V}
         ${"navigate"===i.action?j`
               <ha-textfield
