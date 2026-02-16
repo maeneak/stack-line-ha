@@ -61,6 +61,7 @@ export interface StackLineCardConfig {
   chart_type: ChartType;
   show_legend: boolean;
   show_points: boolean;
+  normalize: boolean;
   entities: EntityConfig[];
   // Actions
   tap_action?: ActionConfig;

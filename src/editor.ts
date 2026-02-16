@@ -142,6 +142,19 @@ class StackLineCardEditor extends LitElement {
                 </div>
 
                 <div class="switch-row">
+                  <div>
+                    <span>Normalize Y-axis</span>
+                    <div class="helper">
+                      Scale all series to 0-100% for trend comparison
+                    </div>
+                  </div>
+                  <ha-switch
+                    .checked=${this._config.normalize}
+                    @change=${this._normalizeChanged}
+                  ></ha-switch>
+                </div>
+
+                <div class="switch-row">
                   <span>Show legend</span>
                   <ha-switch
                     .checked=${this._config.show_legend}
@@ -584,6 +597,14 @@ class StackLineCardEditor extends LitElement {
     this._config = {
       ...this._config,
       stacked: (e.target as HTMLInputElement).checked,
+    };
+    this._fireConfigChanged();
+  }
+
+  private _normalizeChanged(e: Event): void {
+    this._config = {
+      ...this._config,
+      normalize: (e.target as HTMLInputElement).checked,
     };
     this._fireConfigChanged();
   }

@@ -329,6 +329,7 @@ class StackLineCard extends LitElement {
       period: this._config.period,
       stacked: this._config.stacked,
       chart_type: this._config.chart_type,
+      normalize: this._config.normalize,
     });
   }
 
@@ -423,44 +424,63 @@ class StackLineCard extends LitElement {
     const gridColor = this._getCSSVar("--divider-color", "#e0e0e0");
     const secondaryText = this._getCSSVar("--secondary-text-color", "#666");
 
+    const isNormalized = this._config.normalize;
+
     const config: ChartConfiguration<"line"> = {
       type: "line",
       data: { datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 300 },
+        animation: { duration: 250 },
         interaction: {
           mode: "index",
           intersect: false,
         },
+        layout: {
+          padding: { top: 4, right: 4, bottom: 0, left: 0 },
+        },
         plugins: {
           legend: {
             display: this._config.show_legend,
+            position: "bottom",
             labels: {
-              color: textColor,
+              color: secondaryText,
               usePointStyle: true,
-              padding: 16,
+              pointStyle: "circle",
+              boxWidth: 6,
+              boxHeight: 6,
+              padding: 12,
+              font: { size: 11 },
             },
           },
           tooltip: {
-            backgroundColor: this._getCSSVar(
-              "--ha-card-background",
-              "rgba(0,0,0,0.8)",
-            ),
-            titleColor: textColor,
-            bodyColor: secondaryText,
-            borderColor: gridColor,
-            borderWidth: 1,
-            padding: 10,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            titleColor: "#fff",
+            bodyColor: "rgba(255,255,255,0.85)",
+            titleFont: { size: 11, weight: "normal" as const },
+            bodyFont: { size: 12 },
+            borderWidth: 0,
+            cornerRadius: 8,
+            padding: { top: 8, bottom: 8, left: 10, right: 10 },
+            boxPadding: 4,
+            usePointStyle: true,
             callbacks: {
               label: (ctx) => {
                 const entityConf = this._config.entities[ctx.datasetIndex];
                 const label = entityConf?.name || ctx.dataset.label || "";
+                const unit = this._getUnit(entityConf?.entity);
+                // Show raw value when normalized
+                if (isNormalized) {
+                  const rawPoints = this._rawDatasets.get(ctx.datasetIndex);
+                  const rawVal = rawPoints?.[ctx.dataIndex]?.y;
+                  const display =
+                    rawVal != null ? rawVal.toFixed(2) : "N/A";
+                  return ` ${label}: ${display}${unit ? " " + unit : ""}`;
+                }
                 const val =
                   ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) : "N/A";
-                const unit = this._getUnit(entityConf?.entity);
-                return `${label}: ${val}${unit ? " " + unit : ""}`;
+                return ` ${label}: ${val}${unit ? " " + unit : ""}`;
               },
             },
           },
@@ -468,14 +488,36 @@ class StackLineCard extends LitElement {
         scales: {
           x: {
             type: "time",
-            ticks: { color: secondaryText, maxTicksLimit: 8 },
-            grid: { color: gridColor, drawTicks: false },
+            ticks: {
+              color: secondaryText,
+              maxTicksLimit: 6,
+              font: { size: 10 },
+              padding: 4,
+            },
+            grid: { display: false },
+            border: { display: false },
           },
           y: {
             stacked: this._config.stacked,
-            ticks: { color: secondaryText },
-            grid: { color: gridColor, drawTicks: false },
-            beginAtZero: this._config.stacked,
+            ticks: {
+              color: secondaryText,
+              font: { size: 10 },
+              padding: 6,
+              maxTicksLimit: 5,
+              ...(isNormalized
+                ? {
+                    callback: (value: any) =>
+                      `${Math.round(Number(value) * 100)}%`,
+                  }
+                : {}),
+            },
+            grid: {
+              color: this._hexToRgba(gridColor, 0.4),
+              drawTicks: false,
+            },
+            border: { display: false, dash: [3, 3] },
+            beginAtZero: this._config.stacked || isNormalized,
+            ...(isNormalized ? { min: 0, max: 1 } : {}),
           },
         },
       },
@@ -490,14 +532,24 @@ class StackLineCard extends LitElement {
     }
   }
 
+  // Store raw values for tooltip display when normalized
+  private _rawDatasets: Map<number, { x: number; y: number }[]> = new Map();
+
   private _buildDatasets(
     data: StatisticsResult,
   ): ChartDataset<"line", { x: number; y: number }[]>[] {
+    this._rawDatasets.clear();
+
     return this._config.entities.map((entityConf, index) => {
       const color =
         entityConf.color || COLOR_PALETTE[index % COLOR_PALETTE.length];
       const points = data[entityConf.entity] || [];
-      const chartData = this._extractChartData(points, entityConf.stat);
+      const rawData = this._extractChartData(points, entityConf.stat);
+
+      this._rawDatasets.set(index, rawData);
+
+      const chartData =
+        this._config.normalize ? this._normalizeData(rawData) : rawData;
 
       const isArea =
         this._config.chart_type === "area" || entityConf.fill === true;
@@ -514,13 +566,28 @@ class StackLineCard extends LitElement {
           ? this._hexToRgba(color, opacity)
           : "transparent",
         fill: isArea ? (this._config.stacked ? "stack" : "origin") : false,
-        tension: 0.3,
-        pointRadius: this._config.show_points ? 3 : 0,
-        pointHoverRadius: 5,
-        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: this._config.show_points ? 2 : 0,
+        pointHoverRadius: 4,
+        borderWidth: 1.5,
         stack: this._config.stacked ? "stack" : undefined,
       } as ChartDataset<"line", { x: number; y: number }[]>;
     });
+  }
+
+  private _normalizeData(
+    data: { x: number; y: number }[],
+  ): { x: number; y: number }[] {
+    if (data.length === 0) return data;
+    const values = data.map((d) => d.y);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    if (range === 0) return data.map((d) => ({ x: d.x, y: 0.5 }));
+    return data.map((d) => ({
+      x: d.x,
+      y: (d.y - min) / range,
+    }));
   }
 
   private _extractChartData(

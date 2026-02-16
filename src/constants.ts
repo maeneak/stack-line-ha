@@ -35,6 +35,7 @@ export const DEFAULT_CONFIG: Omit<StackLineCardConfig, "type" | "entities"> = {
   chart_type: "line",
   show_legend: true,
   show_points: false,
+  normalize: false,
   tap_action: DEFAULT_TAP_ACTION,
   hold_action: DEFAULT_HOLD_ACTION,
   double_tap_action: DEFAULT_DOUBLE_TAP_ACTION,

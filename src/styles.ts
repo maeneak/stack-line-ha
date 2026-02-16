@@ -23,16 +23,17 @@ export const cardStyles = css`
 
   .card-header {
     padding: 12px 16px 0;
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 500;
+    letter-spacing: 0.01em;
     color: var(--primary-text-color);
   }
 
   .chart-container {
     position: relative;
-    padding: 8px 16px 16px;
+    padding: 4px 12px 12px;
     flex: 1;
-    min-height: 200px;
+    min-height: 180px;
   }
 
   .chart-container canvas {
@@ -44,7 +45,7 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
+    min-height: 180px;
     color: var(--secondary-text-color);
   }
 
@@ -52,9 +53,9 @@ export const cardStyles = css`
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 200px;
+    min-height: 180px;
     color: var(--secondary-text-color);
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 `;
 
