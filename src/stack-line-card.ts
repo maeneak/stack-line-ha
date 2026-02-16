@@ -382,27 +382,175 @@ class StackLineCard extends LitElement {
       endTime.getTime() - this._config.hours_to_show * 60 * 60 * 1000,
     );
 
-    const entityIds = this._config.entities.map((e) => e.entity);
+    // Split entities: those with state_class use statistics API, others use history API
+    const statsEntities: EntityConfig[] = [];
+    const historyEntities: EntityConfig[] = [];
 
-    const neededTypes = new Set<string>();
     for (const e of this._config.entities) {
-      if (e.stat === "change") {
-        neededTypes.add("state");
+      const stateObj = this.hass.states[e.entity];
+      if (stateObj?.attributes?.state_class) {
+        statsEntities.push(e);
       } else {
-        neededTypes.add(e.stat);
+        historyEntities.push(e);
       }
     }
 
-    const result = await this.hass.callWS<StatisticsResult>({
-      type: "recorder/statistics_during_period",
+    const result: StatisticsResult = {};
+
+    // Fetch in parallel
+    const promises: Promise<void>[] = [];
+
+    if (statsEntities.length > 0) {
+      const neededTypes = new Set<string>();
+      for (const e of statsEntities) {
+        neededTypes.add(e.stat === "change" ? "state" : e.stat);
+      }
+
+      promises.push(
+        this.hass
+          .callWS<StatisticsResult>({
+            type: "recorder/statistics_during_period",
+            start_time: startTime.toISOString(),
+            end_time: endTime.toISOString(),
+            statistic_ids: statsEntities.map((e) => e.entity),
+            period: this._config.period,
+            types: Array.from(neededTypes),
+          })
+          .then((statsResult) => {
+            if (statsResult) Object.assign(result, statsResult);
+          }),
+      );
+    }
+
+    if (historyEntities.length > 0) {
+      promises.push(
+        this._fetchHistory(historyEntities, startTime, endTime).then(
+          (histResult) => {
+            Object.assign(result, histResult);
+          },
+        ),
+      );
+    }
+
+    await Promise.all(promises);
+
+    return Object.keys(result).length > 0 ? result : null;
+  }
+
+  private async _fetchHistory(
+    entities: EntityConfig[],
+    startTime: Date,
+    endTime: Date,
+  ): Promise<StatisticsResult> {
+    interface HistoryEntry {
+      s?: string;
+      lu?: number;
+      state?: string;
+      last_updated?: string;
+    }
+
+    const historyData = await this.hass.callWS<
+      Record<string, HistoryEntry[]>
+    >({
+      type: "history/history_during_period",
       start_time: startTime.toISOString(),
       end_time: endTime.toISOString(),
-      statistic_ids: entityIds,
-      period: this._config.period,
-      types: Array.from(neededTypes),
+      entity_ids: entities.map((e) => e.entity),
+      minimal_response: true,
+      no_attributes: true,
     });
 
-    if (!result || Object.keys(result).length === 0) return null;
+    if (!historyData) return {};
+
+    const result: StatisticsResult = {};
+    const periodMs = this._getPeriodMs();
+
+    for (const entityConf of entities) {
+      const entries = historyData[entityConf.entity];
+      if (!entries || entries.length === 0) continue;
+
+      // Parse numeric state values with timestamps
+      const numericPoints: { time: number; value: number }[] = [];
+      for (const entry of entries) {
+        const stateStr = entry.s ?? entry.state;
+        const time = entry.lu
+          ? entry.lu * 1000
+          : entry.last_updated
+            ? new Date(entry.last_updated).getTime()
+            : 0;
+        if (!stateStr || !time) continue;
+        const value = parseFloat(stateStr);
+        if (!isNaN(value)) {
+          numericPoints.push({ time, value });
+        }
+      }
+
+      if (numericPoints.length === 0) continue;
+
+      result[entityConf.entity] = this._bucketHistoryData(
+        numericPoints,
+        startTime.getTime(),
+        periodMs,
+      );
+    }
+
+    return result;
+  }
+
+  private _getPeriodMs(): number {
+    switch (this._config.period) {
+      case "5minute":
+        return 5 * 60 * 1000;
+      case "hour":
+        return 60 * 60 * 1000;
+      case "day":
+        return 24 * 60 * 60 * 1000;
+      case "week":
+        return 7 * 24 * 60 * 60 * 1000;
+      case "month":
+        return 30 * 24 * 60 * 60 * 1000;
+      default:
+        return 60 * 60 * 1000;
+    }
+  }
+
+  private _bucketHistoryData(
+    points: { time: number; value: number }[],
+    startMs: number,
+    periodMs: number,
+  ): StatisticsDataPoint[] {
+    const buckets = new Map<number, number[]>();
+
+    for (const p of points) {
+      const bucketStart =
+        startMs + Math.floor((p.time - startMs) / periodMs) * periodMs;
+      let bucket = buckets.get(bucketStart);
+      if (!bucket) {
+        bucket = [];
+        buckets.set(bucketStart, bucket);
+      }
+      bucket.push(p.value);
+    }
+
+    const result: StatisticsDataPoint[] = [];
+    const sortedKeys = Array.from(buckets.keys()).sort((a, b) => a - b);
+
+    for (const bucketStart of sortedKeys) {
+      const values = buckets.get(bucketStart)!;
+      const sum = values.reduce((a, b) => a + b, 0);
+
+      result.push({
+        start: new Date(bucketStart).toISOString(),
+        end: new Date(bucketStart + periodMs).toISOString(),
+        min: Math.min(...values),
+        max: Math.max(...values),
+        mean: sum / values.length,
+        sum,
+        state: values[values.length - 1],
+        change: null,
+      });
+    }
+
     return result;
   }
 
