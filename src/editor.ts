@@ -333,7 +333,7 @@ class StackLineCardEditor extends LitElement {
   // ── Interactions Section ────────────────────────────────────
   private _renderFilterSection(): TemplateResult {
     const filter = this._config.time_filter;
-    const hasFilter = !!filter?.entity;
+    const hasFilter = filter != null;
 
     return html`
       <div class="section">

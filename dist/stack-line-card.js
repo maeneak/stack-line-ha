@@ -495,7 +495,7 @@ const ct={attribute:!0,type:String,converter:_,reflect:!1,hasChanged:y},lt=(t=ct
               `:V}
         </div>
       </div>
-    `}_renderFilterSection(){const t=this._config.time_filter,e=!!t?.entity;return B`
+    `}_renderFilterSection(){const t=this._config.time_filter,e=null!=t;return B`
       <div class="section">
         <div
           class="section-header"
