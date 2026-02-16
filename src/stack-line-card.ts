@@ -23,6 +23,8 @@ import {
   StatType,
   ActionConfig,
   GridOptions,
+  FilterOperator,
+  TimeFilter,
 } from "./types";
 import {
   DEFAULT_CONFIG,
@@ -330,6 +332,7 @@ class StackLineCard extends LitElement {
       stacked: this._config.stacked,
       chart_type: this._config.chart_type,
       normalize: this._config.normalize,
+      time_filter: this._config.time_filter,
     });
   }
 
@@ -357,17 +360,20 @@ class StackLineCard extends LitElement {
       this._loading = true;
       const data = await this._fetchStatistics();
       if (data) {
+        // Set loading/noData BEFORE building chart so canvas is visible
         this._noData = false;
+        this._loading = false;
         await this.updateComplete;
         this._buildChart(data);
       } else {
         this._noData = true;
+        this._loading = false;
       }
     } catch (err) {
       console.error("stack-line-card: Failed to fetch statistics", err);
       this._noData = true;
-    } finally {
       this._loading = false;
+    } finally {
       if (this._fetchTimer) clearTimeout(this._fetchTimer);
       this._fetchTimer = window.setTimeout(
         () => this._tryFetchData(),
@@ -382,11 +388,24 @@ class StackLineCard extends LitElement {
       endTime.getTime() - this._config.hours_to_show * 60 * 60 * 1000,
     );
 
+    // Collect all entities to fetch (configured + filter entity)
+    const allEntities: EntityConfig[] = [...this._config.entities];
+    const filter = this._config.time_filter;
+    if (
+      filter?.entity &&
+      !allEntities.some((e) => e.entity === filter.entity)
+    ) {
+      allEntities.push({
+        entity: filter.entity,
+        stat: filter.stat || "mean",
+      });
+    }
+
     // Split entities: those with state_class use statistics API, others use history API
     const statsEntities: EntityConfig[] = [];
     const historyEntities: EntityConfig[] = [];
 
-    for (const e of this._config.entities) {
+    for (const e of allEntities) {
       const stateObj = this.hass.states[e.entity];
       if (stateObj?.attributes?.state_class) {
         statsEntities.push(e);
@@ -562,7 +581,14 @@ class StackLineCard extends LitElement {
     ) as HTMLCanvasElement | null;
     if (!canvas) return;
 
-    const datasets = this._buildDatasets(data);
+    // Safety: if canvas has no dimensions (still hidden), retry after a frame
+    if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+      requestAnimationFrame(() => this._buildChart(data));
+      return;
+    }
+
+    const filteredData = this._applyTimeFilter(data);
+    const datasets = this._buildDatasets(filteredData);
     if (datasets.length === 0) {
       this._noData = true;
       return;
@@ -784,17 +810,87 @@ class StackLineCard extends LitElement {
     );
   }
 
-  private _hexToRgba(hex: string, alpha: number): string {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  private _hexToRgba(color: string, alpha: number): string {
+    // Handle hex colors (#RGB or #RRGGBB)
+    if (color.startsWith("#")) {
+      const hex =
+        color.length === 4
+          ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+          : color;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+    }
+    // Handle rgb()/rgba() strings
+    const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+      return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
+    }
+    // Fallback for unrecognised formats
+    return `rgba(128, 128, 128, ${alpha})`;
   }
 
   private _destroyChart(): void {
     if (this._chart) {
       this._chart.destroy();
       this._chart = undefined;
+    }
+  }
+
+  // ── Time Filter ─────────────────────────────────────────────
+
+  private _applyTimeFilter(data: StatisticsResult): StatisticsResult {
+    const filter = this._config.time_filter;
+    if (!filter?.entity || !filter.operator || filter.value == null) {
+      return data;
+    }
+
+    const filterData = data[filter.entity];
+    if (!filterData || filterData.length === 0) return data;
+
+    const filterStat = filter.stat || "mean";
+
+    // Build set of allowed time-bucket start values
+    const allowedTimes = new Set<string>();
+    for (const point of filterData) {
+      const val = point[filterStat];
+      if (val == null) continue;
+      if (this._meetsCondition(val as number, filter.operator, filter.value)) {
+        allowedTimes.add(point.start);
+      }
+    }
+
+    // Filter every entity's data to only allowed time buckets
+    const result: StatisticsResult = {};
+    for (const [entityId, points] of Object.entries(data)) {
+      result[entityId] = points.filter((p) => allowedTimes.has(p.start));
+    }
+    return result;
+  }
+
+  private _meetsCondition(
+    value: number,
+    operator: FilterOperator,
+    threshold: number,
+  ): boolean {
+    switch (operator) {
+      case "gt":
+        return value > threshold;
+      case "lt":
+        return value < threshold;
+      case "gte":
+        return value >= threshold;
+      case "lte":
+        return value <= threshold;
+      case "eq":
+        return value === threshold;
+      case "neq":
+        return value !== threshold;
+      default:
+        return true;
     }
   }
 }

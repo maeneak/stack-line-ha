@@ -5,6 +5,7 @@ import {
   ActionType,
   ActionConfig,
   GridOptions,
+  FilterOperator,
 } from "./types";
 
 export const DEFAULT_GRID_OPTIONS: GridOptions = {
@@ -86,3 +87,12 @@ export const FETCH_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
 export const HOLD_THRESHOLD_MS = 500;
 export const DOUBLE_TAP_THRESHOLD_MS = 250;
+
+export const FILTER_OPERATOR_LABELS: Record<FilterOperator, string> = {
+  gt: "Greater than",
+  lt: "Less than",
+  gte: "Greater or equal",
+  lte: "Less or equal",
+  eq: "Equal to",
+  neq: "Not equal to",
+};

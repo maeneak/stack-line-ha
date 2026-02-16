@@ -4,6 +4,17 @@ export type PeriodType = "5minute" | "hour" | "day" | "week" | "month";
 
 export type ChartType = "line" | "area";
 
+export type FilterOperator = "gt" | "lt" | "gte" | "lte" | "eq" | "neq";
+
+// ── Time Filter ───────────────────────────────────────────────
+
+export interface TimeFilter {
+  entity: string;
+  stat?: StatType;
+  operator: FilterOperator;
+  value: number;
+}
+
 // ── Actions ───────────────────────────────────────────────────
 
 export type ActionType =
@@ -69,6 +80,8 @@ export interface StackLineCardConfig {
   double_tap_action?: ActionConfig;
   // Grid layout
   grid_options?: GridOptions;
+  // Time filter
+  time_filter?: TimeFilter;
 }
 
 // ── Statistics ────────────────────────────────────────────────

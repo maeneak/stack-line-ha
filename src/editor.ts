@@ -10,6 +10,8 @@ import {
   ActionConfig,
   ActionType,
   GridOptions,
+  FilterOperator,
+  TimeFilter,
 } from "./types";
 import {
   DEFAULT_CONFIG,
@@ -18,6 +20,7 @@ import {
   STAT_LABELS,
   PERIOD_LABELS,
   ACTION_LABELS,
+  FILTER_OPERATOR_LABELS,
 } from "./constants";
 import { editorStyles } from "./styles";
 
@@ -30,6 +33,7 @@ class StackLineCardEditor extends LitElement {
   @state() private _chartSettingsOpen = true;
   @state() private _entitiesOpen = true;
   @state() private _interactionsOpen = false;
+  @state() private _filterOpen = false;
   @state() private _layoutOpen = false;
 
   public setConfig(config: StackLineCardConfig): void {
@@ -61,6 +65,7 @@ class StackLineCardEditor extends LitElement {
       <div class="editor-container">
         ${this._renderChartSettings()}
         ${this._renderEntitiesSection()}
+        ${this._renderFilterSection()}
         ${this._renderInteractionsSection()}
         ${this._renderLayoutSection()}
       </div>
@@ -326,7 +331,157 @@ class StackLineCardEditor extends LitElement {
   }
 
   // ── Interactions Section ────────────────────────────────────
+  private _renderFilterSection(): TemplateResult {
+    const filter = this._config.time_filter;
+    const hasFilter = !!filter?.entity;
 
+    return html`
+      <div class="section">
+        <div
+          class="section-header"
+          @click=${() => (this._filterOpen = !this._filterOpen)}
+        >
+          <h3>Time Filter${hasFilter ? " ✓" : ""}</h3>
+          <ha-icon
+            icon="mdi:chevron-${this._filterOpen ? "up" : "down"}"
+          ></ha-icon>
+        </div>
+        ${this._filterOpen
+          ? html`
+              <div class="section-content">
+                <div class="helper-text">
+                  Only show time periods where an entity's value meets a
+                  condition
+                </div>
+
+                <div class="switch-row">
+                  <span>Enable filter</span>
+                  <ha-switch
+                    .checked=${hasFilter}
+                    @change=${this._filterToggleChanged}
+                  ></ha-switch>
+                </div>
+
+                ${hasFilter
+                  ? html`
+                      <ha-selector
+                        .hass=${this.hass}
+                        .selector=${{ entity: { domain: "sensor" } }}
+                        .value=${filter!.entity}
+                        .label=${"Filter entity"}
+                        @value-changed=${(e: CustomEvent) =>
+                          this._filterFieldChanged(
+                            "entity",
+                            e.detail.value,
+                          )}
+                      ></ha-selector>
+
+                      <div class="row">
+                        <ha-select
+                          label="Statistic to compare"
+                          .value=${filter!.stat || "mean"}
+                          @selected=${(e: CustomEvent) => {
+                            const target = e.target as any;
+                            if (target?.value) {
+                              this._filterFieldChanged(
+                                "stat",
+                                target.value,
+                              );
+                            }
+                          }}
+                          @closed=${(e: Event) => e.stopPropagation()}
+                          fixedMenuPosition
+                        >
+                          ${Object.entries(STAT_LABELS).map(
+                            ([value, label]) => html`
+                              <mwc-list-item .value=${value}
+                                >${label}</mwc-list-item
+                              >
+                            `,
+                          )}
+                        </ha-select>
+
+                        <ha-select
+                          label="Operator"
+                          .value=${filter!.operator || "gt"}
+                          @selected=${(e: CustomEvent) => {
+                            const target = e.target as any;
+                            if (target?.value) {
+                              this._filterFieldChanged(
+                                "operator",
+                                target.value,
+                              );
+                            }
+                          }}
+                          @closed=${(e: Event) => e.stopPropagation()}
+                          fixedMenuPosition
+                        >
+                          ${Object.entries(FILTER_OPERATOR_LABELS).map(
+                            ([value, label]) => html`
+                              <mwc-list-item .value=${value}
+                                >${label}</mwc-list-item
+                              >
+                            `,
+                          )}
+                        </ha-select>
+                      </div>
+
+                      <ha-textfield
+                        label="Threshold value"
+                        type="number"
+                        .value=${String(filter!.value ?? "")}
+                        @input=${(e: Event) => {
+                          const val = parseFloat(
+                            (e.target as HTMLInputElement).value,
+                          );
+                          if (!isNaN(val)) {
+                            this._filterFieldChanged("value", val);
+                          }
+                        }}
+                      ></ha-textfield>
+                    `
+                  : nothing}
+              </div>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _filterToggleChanged(e: Event): void {
+    const enabled = (e.target as HTMLInputElement).checked;
+    if (enabled) {
+      this._config = {
+        ...this._config,
+        time_filter: {
+          entity: "",
+          stat: "mean",
+          operator: "gt",
+          value: 0,
+        },
+      };
+    } else {
+      const { time_filter, ...rest } = this._config;
+      this._config = rest as StackLineCardConfig;
+    }
+    this._fireConfigChanged();
+  }
+
+  private _filterFieldChanged(field: string, value: any): void {
+    const current = this._config.time_filter || {
+      entity: "",
+      stat: "mean" as StatType,
+      operator: "gt" as FilterOperator,
+      value: 0,
+    };
+    this._config = {
+      ...this._config,
+      time_filter: { ...current, [field]: value },
+    };
+    this._fireConfigChanged();
+  }
+
+  // ── Interactions Section (Actions) ─────────────────────────
   private _renderInteractionsSection(): TemplateResult {
     return html`
       <div class="section">
