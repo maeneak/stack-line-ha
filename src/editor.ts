@@ -26,6 +26,7 @@ class StackLineCardEditor extends LitElement {
 
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: StackLineCardConfig;
+  @state() private _helpers: any;
   @state() private _chartSettingsOpen = true;
   @state() private _entitiesOpen = true;
   @state() private _interactionsOpen = false;
@@ -37,6 +38,11 @@ class StackLineCardEditor extends LitElement {
       ...config,
       entities: config.entities || [],
     } as StackLineCardConfig;
+    this._loadHelpers();
+  }
+
+  private async _loadHelpers(): Promise<void> {
+    this._helpers = await (window as any).loadCardHelpers();
   }
 
   private _fireConfigChanged(): void {
@@ -49,7 +55,7 @@ class StackLineCardEditor extends LitElement {
   }
 
   protected render(): TemplateResult {
-    if (!this.hass || !this._config) return html``;
+    if (!this.hass || !this._config || !this._helpers) return html``;
 
     return html`
       <div class="editor-container">
